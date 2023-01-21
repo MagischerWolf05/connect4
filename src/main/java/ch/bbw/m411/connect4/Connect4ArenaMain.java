@@ -17,7 +17,7 @@ public class Connect4ArenaMain {
 	static final int NOMOVE = -1;
 
 	public static void main(String[] args) {
-		new Connect4ArenaMain().play(new HumanPlayer(), new GreedyPlayer());
+	new Connect4ArenaMain().play(new HumanPlayer(), new AlphaBetaPlayer());
 	}
 
 	static String toDebugString(Stone[] board) {
@@ -31,6 +31,7 @@ public class Connect4ArenaMain {
 		}
 		return sb.toString();
 	}
+
 
 	Connect4Player play(Connect4Player red, Connect4Player blue) {
 		if (red == blue) {
@@ -61,15 +62,64 @@ public class Connect4ArenaMain {
 		return null; // null implies a draw
 	}
 
-	boolean isWinning(Stone[] board, Stone forColor) {
-		// TODO: provide an implementation
-		throw new IllegalStateException("Not implemented yet");
+	public static boolean isWinning(Stone[] board, Stone color) {
+		// check for horizontal wins
+		for (int row = 0; row < HEIGHT; row++) {
+			for (int col = 0; col < WIDTH-3; col++) {
+				if (board[row*WIDTH+col] == color &&
+						board[row*WIDTH+col+1] == color &&
+						board[row*WIDTH+col+2] == color &&
+						board[row*WIDTH+col+3] == color) {
+					return true;
+				}
+			}
+		}
+
+		// check for vertical wins
+		for (int row = 0; row < HEIGHT-3; row++) {
+			for (int col = 0; col < WIDTH; col++) {
+				if (board[row*WIDTH+col] == color &&
+						board[(row+1)*WIDTH+col] == color &&
+						board[(row+2)*WIDTH+col] == color &&
+						board[(row+3)*WIDTH+col] == color) {
+					return true;
+				}
+			}
+		}
+
+		// check for diagonal wins
+		for (int row = 0; row < HEIGHT-3; row++) {
+			for (int col = 0; col < WIDTH-3; col++) {
+				if (board[row*WIDTH+col] == color &&
+						board[(row+1)*WIDTH+col+1] == color &&
+						board[(row+2)*WIDTH+col+2] == color &&
+						board[(row+3)*WIDTH+col+3] == color) {
+					return true;
+				}
+			}
+		}
+
+		for (int row = 3; row < HEIGHT; row++) {
+			for (int col = 0; col < WIDTH-3; col++) {
+				if (board[row*WIDTH+col] == color &&
+						board[(row-1)*WIDTH+col+1] == color &&
+						board[(row-2)*WIDTH+col+2] == color &&
+						board[(row-3)*WIDTH+col+3] == color) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
+
+
+
 
 	public enum Stone {
 		RED, BLUE;
 
 		public Stone opponent() {
+
 			return this == RED ? BLUE : RED;
 		}
 	}
@@ -134,7 +184,6 @@ public class Connect4ArenaMain {
 		abstract int play();
 
 	}
-
 	public static class HumanPlayer extends DefaultPlayer {
 
 		static String toPrettyString(Stone[] board) {
@@ -169,7 +218,94 @@ public class Connect4ArenaMain {
 		}
 
 	}
+	public static class AlphaBetaPlayer extends DefaultPlayer {
 
+		@Override
+		public int play() {
+			return findBestMove(Integer.MIN_VALUE, Integer.MAX_VALUE, board, myColor,5);
+		}
+
+		private int findBestMove(int alpha, int beta, Stone[] board, Stone color,int depth) {
+			int bestMove = -1;
+			for (int i = 0; i < board.length; i++) {
+				if (board[i] == null) {
+					Stone[] newBoard = play(board, i, color);
+					int value = alphabeta(alpha, beta, newBoard, color.opponent(),depth);
+					if (color == Stone.RED) {
+						if (value > alpha) {
+							alpha = value;
+							bestMove = i;
+						}
+					} else {
+						if (value < beta) {
+							beta = value;
+							bestMove = i;
+						}
+					}
+					if (alpha >= beta) {
+						break; // prune search tree
+					}
+				}
+			}
+			return bestMove;
+		}
+
+		private int alphabeta(int alpha, int beta, Stone[] board, Stone color,int depth) {
+			if (isWinning(board, color)) {
+				return Integer.MAX_VALUE;
+			}else if(depth == 0){
+				return evaluate(board,color);
+			}
+			else if (isWinning(board, color.opponent())) {
+				return Integer.MIN_VALUE;
+			} else if (isDraw(board)) {
+				return 0;
+			} else {
+				for (int i = 0; i < board.length; i++) {
+					if (board[i] == null) {
+						int value = alphabeta(alpha, beta, play(board, i, color), color.opponent(),depth);
+						if (color == Stone.RED) {
+							alpha = Math.max(alpha, value);
+						} else {
+							beta = Math.min(beta, value);
+						}
+						if (alpha >= beta) {
+							break;
+						}
+					}
+				}
+				return (color == Stone.RED) ? alpha : beta;
+			}
+		}
+		private int evaluate(Stone[] board, Stone color) {
+			int score = 0;
+			for (int i = 0; i < board.length; i++) {
+				if (board[i] == color) {
+					score++;
+				} else if (board[i] == color.opponent()) {
+					score--;
+				}
+			}
+			return score;
+		}
+
+		private boolean isDraw(Stone[] board) {
+			for (int i = 0; i < board.length; i++) {
+				if (board[i] == null) {
+					return false;
+				}
+			}
+			return !isWinning(board, Stone.RED) && !isWinning(board, Stone.BLUE);
+		}
+
+
+
+		private Stone[] play(Stone[] board, int move, Stone color) {
+			Stone[] newBoard = Arrays.copyOf(board, board.length);
+			newBoard[move] = color;
+			return newBoard;
+		}
+	}
 	public static class GreedyPlayer extends DefaultPlayer {
 
 		@Override
